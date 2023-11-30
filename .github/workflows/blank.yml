@@ -1,0 +1,58 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy_dev:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '14'
+
+      - name: Install dependencies and increment version
+        run: |
+          npm install
+          npm version patch
+
+      - name: Build and test
+        run: |
+          npm run build
+          dotnet test
+
+      - name: Set up Azure CLI
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Development
+        if: success()
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ secrets.DEV_APP_NAME }}
+          package: ${{ github.workspace }}/dist
+
+  deploy_prod:
+    runs-on: ubuntu-latest
+    needs: deploy_dev
+
+    steps:
+      - name: Set up Azure CLI
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Production
+        if: success()
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ secrets.PROD_APP_NAME }}
+          package: ${{ github.workspace }}/dist
